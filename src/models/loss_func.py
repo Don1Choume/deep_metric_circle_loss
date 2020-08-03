@@ -91,7 +91,7 @@ def feature_similarity(x, label, similarity='cos'):
     return sim_mat[pos_mask == 1], sim_mat[neg_mask == 1]
 
 class CircleLoss(nn.Module):
-    def __init__(self, m=0.25, gamma=32, similarity='cos'):
+    def __init__(self, m=0.25, gamma=80, similarity='cos'):
         super(CircleLoss, self).__init__()
         self.m = m
         self.gamma = gamma
