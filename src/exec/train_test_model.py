@@ -1,20 +1,22 @@
 from pathlib import Path
 import pickle
 import cloudpickle
+import sys
+current_dir = Path(__file__).resolve().parent
+sys.path.append(str(Path(str(current_dir) + '/../')))
 
 import torch
 import torch.nn as nn
 from torch.nn import Parameter
 from torch.optim import SGD
 from torch.utils.data import DataLoader
-
-from ..models.CNN_model import Encoder, Classifier
-from ..models.loss_func import CosLayer, CircleLoss
+from models.CNN_model import Encoder, Classifier
+from models.loss_func import CosLayer, CircleLoss
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
 
-def get_loader(data_type='train'):
+def get_dataset(data_type='train'):
     project_dir = Path(__file__).resolve().parents[2]
     data_path = project_dir/'data'/'processed'
     if data_type=='train':
@@ -28,34 +30,37 @@ def get_loader(data_type='train'):
 def save_model(model, savename):
     project_dir = Path(__file__).resolve().parents[2]
     model_path = project_dir/'models'
-    with open(str(data_path/savename), 'wb') as f:
+    with open(str(model_path/savename), 'wb') as f:
         cloudpickle.dump(model, f)
 
 def load_model(savename):
     project_dir = Path(__file__).resolve().parents[2]
     model_path = project_dir/'models'
-    with open(str(data_path/savename), 'rb') as f:
+    with open(str(model_path/savename), 'rb') as f:
         model = cloudpickle.load(f)
     return model
 
 def train_classifier():
+    batch_size = 64
+    epoch_num = 20
+
     model = Encoder()
     classifier = Classifier()
     optimizer = SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
     optimizer_cls = SGD(classifier.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
-    train_loader = DataLoader(get_loader('train'), batch_size=64, shuffle=True)
-    val_loader = DataLoader(get_loader('valid'), batch_size=64, shuffle=True)
+    train_loader = DataLoader(get_dataset('train'), batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(get_dataset('valid'), batch_size=1000, shuffle=False)
     criterion = CircleLoss(m=0.25, gamma=80, similarity='cos')
     criterion_xe = nn.CrossEntropyLoss()
 
-    for epoch in range(20):
+    for epoch in range(epoch_num):
         for img, label in train_loader:
             model.zero_grad()
             features = model(img)
-            loss = criterion(*convert_label_to_similarity(features, label))
+            loss = criterion(features, label)
             loss.backward()
             optimizer.step()
-        print('[{}/{}] Training with Circle Loss.'.format(epoch + 1, 20))
+        print('Train Encoder, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
 
     for epoch in range(20):
         for img, label in train_loader:
@@ -66,20 +71,10 @@ def train_classifier():
             loss = criterion_xe(output, label)
             loss.backward()
             optimizer_cls.step()
-        print('[{}/{}] Training classifier.'.format(epoch + 1, 20))
+        print('Train Classifier, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
 
-
-    if resume and os.path.exists("resume.state"):
-        model.load_state_dict(torch.load("resume.state"))
-    else:
-        for epoch in range(20):
-            for img, label in tqdm(train_loader):
-                model.zero_grad()
-                pred = model(img)
-                loss = criterion(*convert_label_to_similarity(pred, label))
-                loss.backward()
-                optimizer.step()
-        torch.save(model.state_dict(), "resume.state")
+    save_model(model, 'circle_loss_Encoder.pkl')
+    save_model(classifier, 'circle_loss_Classifier.pkl')
 
     tp = 0
     fn = 0
@@ -98,3 +93,7 @@ def train_classifier():
 
     print("Recall: {:.4f}".format(tp / (tp + fn)))
     print("Precision: {:.4f}".format(tp / (tp + fp)))
+
+
+if __name__ == "__main__":
+    train_classifier()

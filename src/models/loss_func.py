@@ -83,10 +83,10 @@ def feature_similarity(x, label, similarity='cos'):
 
     # inspired by attention
     if similarity == 'dot':
-        sim_mat = x.matmul(x.t())
+        sim_mat = x.matmul(x.transpose(1, 0))
     elif similarity == 'cos':
         x = F.normalize(x)
-        sim_mat = x.matmul(x.t())
+        sim_mat = x.matmul(x.transpose(1, 0))
 
     return sim_mat[pos_mask == 1], sim_mat[neg_mask == 1]
 

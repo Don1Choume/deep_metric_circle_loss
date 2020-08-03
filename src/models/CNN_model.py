@@ -1,7 +1,9 @@
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Encoder(nn.Module):
     def __init__(self):
+        super(Encoder, self).__init__()
         self.conv_bn_relu_pool_1 = nn.Sequential(
             nn.Conv2d(1,8,3),
             nn.BatchNorm2d(8),
@@ -16,7 +18,7 @@ class Encoder(nn.Module):
         )
         self.conv_3 = nn.Conv2d(16,64,3)
         self.gap = nn.AdaptiveAvgPool2d((1,1))
-        self.norm = nn.LayerNorm
+        self.norm = nn.LayerNorm(1)
 
     def forward(self, x):
         x = self.conv_bn_relu_pool_1(x)
@@ -24,10 +26,13 @@ class Encoder(nn.Module):
         x = self.conv_3(x)
         x = self.gap(x)
         x = self.norm(x)
+        # x = F.normalize(x)
+        return x
 
 
 class Decoder(nn.Module):
     def __init__(self):
+        super(Decoder, self).__init__()
         self.upconv_bn_relu_1 = nn.Sequential(
             nn.ConvTranspose2d(64, 32, 4), # 4x4
             nn.BatchNorm2d(32),
@@ -46,11 +51,14 @@ class Decoder(nn.Module):
         x = self.upconv_bn_relu_2(x)
         x = self.upconv_3(x)
         x = self.hard_sigmoid(x)
+        return x
 
 
 class Classifier(nn.Module):
     def __init__(self):
+        super(Classifier, self).__init__()
         self.fc = nn.Linear(64, 10)
 
     def forward(self, x):
         x = self.fc(x)
+        return x
