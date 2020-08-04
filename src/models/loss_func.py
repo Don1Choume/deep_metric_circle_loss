@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 
 def feature_similarity(x, label, similarity='cos'):
     n = label.size(0)

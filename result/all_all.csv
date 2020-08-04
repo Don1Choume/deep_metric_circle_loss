@@ -1,0 +1,8 @@
+,0,1
+circleloss,10000,10000
+softmax,10000,10000
+sphereface,10000,10000
+arcface,10000,10000
+cosface,10000,10000
+adacos,10000,10000
+all,10000,10000

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 class Encoder(nn.Module):
     def __init__(self):
@@ -19,15 +20,13 @@ class Encoder(nn.Module):
         )
         self.conv_3 = nn.Conv2d(16,64,3)
         self.gap = nn.AdaptiveAvgPool2d((1,1))
-        self.norm = nn.LayerNorm(1)
 
     def forward(self, x):
         x = self.conv_bn_relu_pool_1(x)
         x = self.conv_bn_relu_pool_2(x)
         x = self.conv_3(x)
         x = self.gap(x)
-        x = self.norm(x)
-        # x = F.normalize(x)
+        x = F.normalize(x)
         return x
 
 
@@ -65,7 +64,7 @@ class CosLayer(nn.Module):
                 ):
         super(CosLayer, self).__init__()
         self.num_feature = num_feature
-        self.n_classes = num_class
+        self.num_class = num_class
         self.loss_type = loss_type
         self.s = s
         self.m0 = m0 #SphereFace margin
