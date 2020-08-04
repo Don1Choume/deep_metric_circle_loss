@@ -1,6 +1,7 @@
 from pathlib import Path
 import pickle
 import cloudpickle
+from tqdm import tqdm
 import sys
 current_dir = Path(__file__).resolve().parent
 sys.path.append(str(Path(str(current_dir) + '/../')))
@@ -10,8 +11,10 @@ import torch.nn as nn
 from torch.nn import Parameter
 from torch.optim import SGD
 from torch.utils.data import DataLoader
-from models.CNN_model import Encoder, Classifier
-from models.loss_func import CosLayer, CircleLoss
+from models.CNN_model import Encoder, CosLayer, Classifier
+from models.loss_func import CircleLoss
+
+from torchsummary import summary
 
 cuda_available = torch.cuda.is_available()
 device = torch.device("cuda" if cuda_available else "cpu")
@@ -42,57 +45,63 @@ def load_model(savename):
 
 def train_classifier():
     batch_size = 64
-    epoch_num = 20
+    epoch_num = 2
 
-    model = Encoder()
-    classifier = Classifier()
-    optimizer = SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
-    optimizer_cls = SGD(classifier.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
     train_loader = DataLoader(get_dataset('train'), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(get_dataset('valid'), batch_size=1000, shuffle=False)
-    criterion = CircleLoss(m=0.25, gamma=80, similarity='cos')
-    criterion_xe = nn.CrossEntropyLoss()
 
+    model = Encoder().to(device)
+    classifier = CosLayer(64, 10, loss_type='softmax').to(device)
+    optimizer = SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
+    optimizer_cls = SGD(classifier.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
+    criterion = CircleLoss(m=0.25, gamma=80, similarity='cos').to(device)
+    criterion_cls = nn.CrossEntropyLoss().to(device)
+
+    print(model)
+    summary(model, (1, 28, 28))
+
+    model.train()
     for epoch in range(epoch_num):
-        for img, label in train_loader:
+        print('Train Encoder, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
+        for img, label in tqdm(train_loader, total=len(train_loader)):
+            img = img.to(device)
+            label = label.to(device)
             model.zero_grad()
             features = model(img)
             loss = criterion(features, label)
             loss.backward()
             optimizer.step()
-        print('Train Encoder, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
 
-    for epoch in range(20):
-        for img, label in train_loader:
+    classifier.train()
+    for epoch in range(epoch_num):
+        print('Train Classifier, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
+        for img, label in tqdm(train_loader, total=len(train_loader)):
+            img = img.to(device)
+            label = label.to(device)
             model.zero_grad()
             classifier.zero_grad()
             features = model(img)
-            output = classifier(features)
-            loss = criterion_xe(output, label)
+            output = classifier(features.reshape(-1, 64))
+            loss = criterion_cls(output, label)
             loss.backward()
             optimizer_cls.step()
-        print('Train Classifier, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
 
     save_model(model, 'circle_loss_Encoder.pkl')
     save_model(classifier, 'circle_loss_Classifier.pkl')
 
-    tp = 0
-    fn = 0
-    fp = 0
-    thresh = 0.75
-    for img, label in val_loader:
-        pred = model(img)
-        gt_label = label[0] == label[1]
-        pred_label = torch.sum(pred[0] * pred[1]) > thresh
-        if gt_label and pred_label:
-            tp += 1
-        elif gt_label and not pred_label:
-            fn += 1
-        elif not gt_label and pred_label:
-            fp += 1
+    model.eval()
+    classifier.eval()
+    correct = 0
+    print('Test Classifier')
+    for img, label in tqdm(val_loader, total=len(val_loader)):
+        with torch.no_grad():
+            img = img.to(device)
+            label = label.to(device)
+            pred = classifier(model(img).reshape(-1, 64)).data.max(1)[1]
+            correct += pred.eq(label.data).cpu().sum()
 
-    print("Recall: {:.4f}".format(tp / (tp + fn)))
-    print("Precision: {:.4f}".format(tp / (tp + fp)))
+    print('Accuracy: {}/{} ({:.0f}%)'.format(
+        correct, len(val_loader.dataset), 100. * correct / len(val_loader.dataset)))
 
 
 if __name__ == "__main__":
