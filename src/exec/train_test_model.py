@@ -329,8 +329,8 @@ if __name__ == "__main__":
         print('iteration {0} / {1}'.format(i+1, iteration))
         for idx in range(7, 13):
             c,a = train_funcs(idx)
-            corrects2[idx].append(c.to('cpu').detach().numpy().copy())
-            alls2[idx].append(a)
+            corrects2[idx-7].append(c.to('cpu').detach().numpy().copy())
+            alls2[idx-7].append(a)
     pd.DataFrame(corrects2, index=[
         'softmax_combined',
         'sphereface_combined',
