@@ -70,6 +70,7 @@ def no_train():
 
 
 def train_circleloss():
+    print('circleloss')
     batch_size = 64
     epoch_num = loop_iter
 
@@ -139,6 +140,7 @@ def train_circleloss():
 
 
 def train_cosloss(loss_type):
+    print(loss_type)
     batch_size = 64
     epoch_num = loop_iter
 
@@ -198,6 +200,69 @@ def train_cosloss(loss_type):
     return correct, len(val_loader.dataset)
 
 
+def train_combined(loss_type):
+    print(loss_type+'_combined')
+    batch_size = 64
+    epoch_num = loop_iter
+
+    train_loader = DataLoader(get_dataset('train'), batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(get_dataset('valid'), batch_size=1000, shuffle=False)
+
+    model = Encoder().to(device)
+    classifier = CosLayer(64, 10, loss_type=loss_type).to(device)
+
+    optimizer = SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
+    optimizer_cls = SGD(classifier.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-5)
+    criterion = CircleLoss(m=0.25, gamma=80, similarity='cos').to(device)
+    criterion_cls = nn.CrossEntropyLoss().to(device)
+
+    print(model)
+    summary(model, (1, 28, 28))
+
+    model.train()
+    classifier.train()
+    for epoch in range(epoch_num):
+        print('Train Classifier, Epoch {0}/{1}'.format(epoch + 1, epoch_num))
+        for img, label in tqdm(train_loader, total=len(train_loader)):
+            img = img.to(device)
+            label = label.to(device)
+            model.zero_grad()
+            classifier.zero_grad()
+            features = model(img)
+            if loss_type=='softmax':
+                output = classifier(features.reshape(-1, 64))
+            else:
+                output = classifier(features.reshape(-1, 64), label)
+            loss = criterion(features, label) + criterion_cls(output, label)
+            loss.backward()
+            optimizer.step()
+            optimizer_cls.step()
+
+    save_model(model, loss_type+'_Combined_Encoder.pth')
+    save_model(classifier, loss_type+'_Combined_Classifier.pth')
+
+    model.eval()
+    classifier.eval()
+    correct = 0
+    feats = []
+    print('Test Classifier')
+    for img, label in tqdm(val_loader, total=len(val_loader)):
+        with torch.no_grad():
+            img = img.to(device)
+            label = label.to(device)
+            feat = model(img).reshape(-1, 64)
+            feats.append(feat.to('cpu').detach().numpy().copy())
+            pred = classifier(feat).data.max(1)[1]
+            correct += pred.eq(label.data).cpu().sum()
+
+    print('Accuracy: {}/{} ({:.0f}%)'.format(
+        correct, len(val_loader.dataset), 100. * correct / len(val_loader.dataset)))
+    project_dir = Path(__file__).resolve().parents[2]
+    rslt_path = project_dir/'result'
+    np.save(str(rslt_path/(loss_type+'_combined_feat.npy')), np.concatenate(feats))
+    return correct, len(val_loader.dataset)
+
+
 def train_funcs(idx):
     if idx==0:
         c,a = train_circleloss()
@@ -213,34 +278,70 @@ def train_funcs(idx):
         c,a = train_cosloss('adacos')
     elif idx==6:
         c,a = train_cosloss('all')
+    elif idx==7:
+        c,a = train_combined('softmax')
+    elif idx==8:
+        c,a = train_combined('sphereface')
+    elif idx==9:
+        c,a = train_combined('arcface')
+    elif idx==10:
+        c,a = train_combined('cosface')
+    elif idx==11:
+        c,a = train_combined('adacos')
+    elif idx==12:
+        c,a = train_combined('all')
     return c, a
 
 if __name__ == "__main__":
-    no_train()
+    # no_train()
     project_dir = Path(__file__).resolve().parents[2]
     rslt_path = project_dir/'result'
 
     iteration = 20
-    corrects = [[] for i in range(7)]
-    alls = [[] for i in range(7)]
+    # corrects = [[] for i in range(7)]
+    # alls = [[] for i in range(7)]
+    # for i in range(iteration):
+    #     print('iteration {0} / {1}'.format(i+1, iteration))
+    #     for idx in range(7):
+    #         c,a = train_funcs(idx)
+    #         corrects[idx].append(c.to('cpu').detach().numpy().copy())
+    #         alls[idx].append(a)
+    # pd.DataFrame(corrects, index=[
+    #     'circleloss',
+    #     'softmax',
+    #     'sphereface',
+    #     'arcface',
+    #     'cosface',
+    #     'adacos',
+    #     'all']).to_csv(str(rslt_path/'all_correct.csv'))
+    # pd.DataFrame(alls, index=[
+    #     'circleloss',
+    #     'softmax',
+    #     'sphereface',
+    #     'arcface',
+    #     'cosface',
+    #     'adacos',
+    #     'all']).to_csv(str(rslt_path/'all_all.csv'))
+
+    corrects2 = [[] for i in range(7, 13)]
+    alls2 = [[] for i in range(7, 13)]
     for i in range(iteration):
-        for idx in range(7):
+        print('iteration {0} / {1}'.format(i+1, iteration))
+        for idx in range(7, 13):
             c,a = train_funcs(idx)
-            corrects[idx].append(c.to('cpu').detach().numpy().copy())
-            alls[idx].append(a)
-    pd.DataFrame(corrects, index=[
-        'circleloss',
-        'softmax',
-        'sphereface',
-        'arcface',
-        'cosface',
-        'adacos',
-        'all']).to_csv(str(rslt_path/'all_correct.csv'))
-    pd.DataFrame(alls, index=[
-        'circleloss',
-        'softmax',
-        'sphereface',
-        'arcface',
-        'cosface',
-        'adacos',
-        'all']).to_csv(str(rslt_path/'all_all.csv'))
+            corrects2[idx].append(c.to('cpu').detach().numpy().copy())
+            alls2[idx].append(a)
+    pd.DataFrame(corrects2, index=[
+        'softmax_combined',
+        'sphereface_combined',
+        'arcface_combined',
+        'cosface_combined',
+        'adacos_combined',
+        'all_combined']).to_csv(str(rslt_path/'all_correct2.csv'))
+    pd.DataFrame(alls2, index=[
+        'softmax_combined',
+        'sphereface_combined',
+        'arcface_combined',
+        'cosface_combined',
+        'adacos_combined',
+        'all_combined']).to_csv(str(rslt_path/'all_all2.csv'))
