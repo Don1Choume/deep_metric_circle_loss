@@ -323,25 +323,27 @@ if __name__ == "__main__":
     #     'adacos',
     #     'all']).to_csv(str(rslt_path/'all_all.csv'))
 
-    corrects2 = [[] for i in range(7, 13)]
-    alls2 = [[] for i in range(7, 13)]
-    for i in range(iteration):
-        print('iteration {0} / {1}'.format(i+1, iteration))
-        for idx in range(7, 13):
-            c,a = train_funcs(idx)
-            corrects2[idx-7].append(c.to('cpu').detach().numpy().copy())
-            alls2[idx-7].append(a)
-    pd.DataFrame(corrects2, index=[
-        'softmax_combined',
-        'sphereface_combined',
-        'arcface_combined',
-        'cosface_combined',
-        'adacos_combined',
-        'all_combined']).to_csv(str(rslt_path/'all_correct2.csv'))
-    pd.DataFrame(alls2, index=[
-        'softmax_combined',
-        'sphereface_combined',
-        'arcface_combined',
-        'cosface_combined',
-        'adacos_combined',
-        'all_combined']).to_csv(str(rslt_path/'all_all2.csv'))
+    # corrects2 = [[] for i in range(7, 13)]
+    # alls2 = [[] for i in range(7, 13)]
+    # for i in range(iteration):
+    #     print('iteration {0} / {1}'.format(i+1, iteration))
+    #     for idx in range(7, 13):
+    #         c,a = train_funcs(idx)
+    #         corrects2[idx-7].append(c.to('cpu').detach().numpy().copy())
+    #         alls2[idx-7].append(a)
+    # pd.DataFrame(corrects2, index=[
+    #     'softmax_combined',
+    #     'sphereface_combined',
+    #     'arcface_combined',
+    #     'cosface_combined',
+    #     'adacos_combined',
+    #     'all_combined']).to_csv(str(rslt_path/'all_correct2.csv'))
+    # pd.DataFrame(alls2, index=[
+    #     'softmax_combined',
+    #     'sphereface_combined',
+    #     'arcface_combined',
+    #     'cosface_combined',
+    #     'adacos_combined',
+    #     'all_combined']).to_csv(str(rslt_path/'all_all2.csv'))
+    model = Encoder().to(device)
+    summary(model, (1, 28, 28))
